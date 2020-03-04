@@ -1,0 +1,3 @@
+(executable
+  (name codegen)
+  (libraries tigerIR))
