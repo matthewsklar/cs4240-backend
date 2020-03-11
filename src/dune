@@ -1,3 +1,4 @@
 (executable
   (name codegen)
-  (libraries tigerIR ppx_nanocaml))
+  (libraries tigerIR ppx_nanocaml)
+  (preprocess (pps ppx_nanocaml)))
