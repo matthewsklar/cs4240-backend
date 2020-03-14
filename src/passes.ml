@@ -109,99 +109,73 @@ let[@pass NestedIr => MipsArith] translate_arith =
       | `Add (dst, `Ident x, `Int i) -> `Addi (dst, x, i)
       | `Add (dst, `Int x, `Int y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Addi (dst, v0, y)
-        ]
+        `Block [ `Li (v0, x);
+                 `Addi (dst, v0, y) ]
       
       | `Sub (dst, `Ident x, `Ident y) -> `Sub (dst, x, y)
       | `Sub (dst, `Int i, `Ident x) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, i);
-          `Sub (dst, v0, x)
-        ]
+        `Block [ `Li (v0, i);
+                 `Sub (dst, v0, x) ]
       | `Sub (dst, `Ident x, `Int i) -> `Subi (dst, x, i)
       | `Sub (dst, `Int x, `Int y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Subi (dst, v0, y)
-        ]
+        `Block [ `Li (v0, x);
+                 `Subi (dst, v0, y) ]
       
       | `Mult (dst, `Ident x, `Ident y) ->
-        `Block [
-          `Mult (x, y);
-          `Mflo dst
-        ]
+        `Block [ `Mult (x, y);
+                 `Mflo dst ]
       | `Mult (dst, `Ident x, `Int y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, y);
-          `Mult (x, v0);
-          `Mflo dst
-        ]
+        `Block [ `Li (v0, y);
+                 `Mult (x, v0);
+                 `Mflo dst ]
       | `Mult (dst, `Int x, `Ident y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Mult (v0, y);
-          `Mflo dst
-        ]
+        `Block [ `Li (v0, x);
+                 `Mult (v0, y);
+                 `Mflo dst ]
       | `Mult (dst, `Int x, `Int y) ->
         let v0 = uniq () and v1 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Li (v1, y);
-          `Mult (v0, v1);
-          `Mflo dst
-        ]
+        `Block [ `Li (v0, x);
+                 `Li (v1, y);
+                 `Mult (v0, v1);
+                 `Mflo dst ]
       
       | `Div (dst, `Ident x, `Ident y) ->
-        `Block [
-          `Div (x, y);
-          `Mflo dst
-        ]
+        `Block [ `Div (x, y);
+                 `Mflo dst ]
       | `Div (dst, `Ident x, `Int y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, y);
-          `Div (x, v0);
-          `Mflo dst
-        ]
+        `Block [ `Li (v0, y);
+                 `Div (x, v0);
+                 `Mflo dst ]
       | `Div (dst, `Int x, `Ident y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Div (v0, y);
-          `Mflo dst
-        ]
+        `Block [ `Li (v0, x);
+                 `Div (v0, y);
+                 `Mflo dst ]
       | `Div (dst, `Int x, `Int y) ->
         let v0 = uniq () and v1 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Li (v1, y);
-          `Div (v0, v1);
-          `Mflo dst
-        ]
+        `Block [ `Li (v0, x);
+                 `Li (v1, y);
+                 `Div (v0, v1);
+                 `Mflo dst ]
       
       | `And (dst, `Ident x, `Ident y) -> `And (dst, x, y)
       | `And (dst, `Int i, `Ident x) -> `Andi (dst, x, i)
       | `And (dst, `Ident x, `Int i) -> `Andi (dst, x, i)
       | `And (dst, `Int x, `Int y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Andi (dst, v0, y)
-        ]
+        `Block [ `Li (v0, x);
+                 `Andi (dst, v0, y) ]
 
       | `Or (dst, `Ident x, `Ident y) -> `Or (dst, x, y)
       | `Or (dst, `Int i, `Ident x) -> `Ori (dst, x, i)
       | `Or (dst, `Ident x, `Int i) -> `Ori (dst, x, i)
       | `Or (dst, `Int x, `Int y) ->
         let v0 = uniq () in
-        `Block [
-          `Li (v0, x);
-          `Ori (dst, v0, y)
-        ]
+        `Block [ `Li (v0, x);
+                 `Ori (dst, v0, y) ]
   ]
