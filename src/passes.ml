@@ -72,7 +72,6 @@ module%language MipsArith = struct
   type instr = {
     add: [
       | `Li of string * int
-      | `Move of string * string
       | `Add of string * string * string
       | `Addi of string * string * int
       | `Sub of string * string * string
@@ -101,7 +100,7 @@ end
 let[@pass NestedIr => MipsArith] translate_arith =
   [%passes
     let[@entry] rec instr = function
-      | `Assign (dst, `Ident src) -> `Move (dst, src)
+      | `Assign (dst, `Ident src) -> `Addi (dst, src, 0)
       | `Assign (dst, `Int imm) -> `Li (dst, imm)
 
       | `Add (dst, `Ident x, `Ident y) -> `Add (dst, x, y)
