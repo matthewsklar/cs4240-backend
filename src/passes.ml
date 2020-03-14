@@ -5,6 +5,8 @@ type op = [
   | `Ident of string
 ]
 
+type reg = int
+
 let of_op = function
   | Int i -> `Int i
   | Float _ -> failwith "Floats aren't implemented yet"
@@ -97,6 +99,45 @@ module%language MipsArith = struct
   }
 end
 
+module%language MipsCond = struct
+  include MipsArith
+  type instr = {
+    add: [
+      | `J of label
+      | `Beq of string * string * label
+      | `Bne of string * string * label
+      | `Bgtz of string * label
+      | `Bltz of string * label
+      | `Bgez of string * label
+      | `Blez of string * label
+    ];
+    del: [
+      | `Goto of label
+      | `Breq of label * op * op
+      | `Brneq of label * op * op
+      | `Brgt of label * op * op
+      | `Brlt of label * op * op
+      | `Brgeq of label * op * op
+      | `Brleq of label * op * op
+    ]
+  }
+end
+
+module%language MipsMem = struct
+  include MipsCond
+  type instr = {
+    add: [
+      | `Lw of string * int * string (* lw dst, off(src) *)
+      | `Sw of string * int * string (* sw src, off(dst) *)
+    ];
+    del: [
+      | `ArrayStore of op * string * op
+      | `ArrayLoad of string * string * op
+      | `ArrayAssign of string * int * op
+    ]
+  }
+end
+
 let[@pass NestedIr => MipsArith] translate_arith =
   [%passes
     let[@entry] rec instr = function
@@ -177,4 +218,53 @@ let[@pass NestedIr => MipsArith] translate_arith =
         let v0 = uniq () in
         `Block [ `Li (v0, x);
                  `Ori (dst, v0, y) ]
+  ]
+
+let use_op op instrs = match op with
+  | `Int i ->
+    let v0 = uniq () in
+    (`Li (v0, i))::(instrs v0)
+  | `Ident id ->
+    instrs id
+
+let[@pass MipsArith => MipsCond] translate_cond =
+  [%passes
+    let[@entry] rec instr = function
+      | `Goto lbl -> `J lbl
+      | `Breq (lbl, x, y) ->
+        `Block (use_op x (fun x ->
+                use_op y (fun y ->
+                [`Beq (x, y, lbl)])))
+      | `Brneq (lbl, x, y) ->
+        `Block (use_op x (fun x ->
+                use_op y (fun y ->
+                [`Bne (x, y, lbl)])))
+      | `Brgt (lbl, x, y) ->
+        let v0 = uniq () in
+        let bgtz = use_op x (fun x -> use_op y (fun y -> [
+          `Sub (v0, x, y);
+          `Bgtz (x, lbl)
+        ])) in
+        `Block bgtz
+      | `Brlt (lbl, x, y) ->
+        let v0 = uniq () in
+        let bltz = use_op x (fun x -> use_op y (fun y -> [
+          `Sub (v0, x, y);
+          `Bltz (x, lbl)
+        ])) in
+        `Block bltz
+      | `Brgeq (lbl, x, y) ->
+        let v0 = uniq () in
+        let bgez = use_op x (fun x -> use_op y (fun y -> [
+          `Sub (v0, x, y);
+          `Bgez (x, lbl)
+        ])) in
+        `Block bgez
+      | `Brleq (lbl, x, y) ->
+        let v0 = uniq () in
+        let blez = use_op x (fun x -> use_op y (fun y -> [
+          `Sub (v0, x, y);
+          `Blez (x, lbl)
+        ])) in
+        `Block blez
   ]
