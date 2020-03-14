@@ -1,5 +1,10 @@
 open TigerIR.Ir
 
+type op = [
+  | `Int of int
+  | `Ident of string
+]
+
 let of_op = function
   | Int i -> `Int i
   | Float _ -> failwith "Floats aren't implemented yet"
@@ -59,11 +64,6 @@ module%language NestedIr = struct
     | `ArrayLoad of string * string * op
     | `ArrayAssign of string * int * op
     | `Block of instr list
-  ]
-
-  and op = [
-    | `Int of int
-    | `Ident of string
   ]
 end
 
@@ -204,6 +204,4 @@ let[@pass NestedIr => MipsArith] translate_arith =
           `Li (v0, x);
           `Ori (dst, v0, y)
         ]
-
-    and op = function `Int i -> `Int i (* Dummy *)
   ]
