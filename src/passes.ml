@@ -127,6 +127,8 @@ module%language MipsMem = struct
   include MipsCond
   type instr = {
     add: [
+      | `Lwi of string * int         (* lw dst, off($zero) *)
+      | `Swi of string * int         (* sw src, off($zero) *)
       | `Lw of string * int * string (* lw dst, off(src) *)
       | `Sw of string * int * string (* sw src, off(dst) *)
     ];
@@ -138,6 +140,25 @@ module%language MipsMem = struct
   }
 end
 
+(*module%language MipsAlloc = struct
+  include MipsMem
+end
+
+module%language MipsCall = struct
+  include MipsAlloc
+end
+
+module%language MipsFlat = struct
+  include MipsCall
+end*)
+
+let use_op op instrs = match op with
+  | `Int i ->
+    let v0 = uniq () in
+    (`Li (v0, i))::(instrs v0)
+  | `Ident id ->
+    instrs id
+
 let[@pass NestedIr => MipsArith] translate_arith =
   [%passes
     let[@entry] rec instr = function
@@ -146,62 +167,26 @@ let[@pass NestedIr => MipsArith] translate_arith =
 
       | `Add (dst, `Ident x, `Ident y) -> `Add (dst, x, y)
       | `Add (dst, `Int i, `Ident x) -> `Addi (dst, x, i)
-      | `Add (dst, `Ident x, `Int i) -> `Addi (dst, x, i)
-      | `Add (dst, `Int x, `Int y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Addi (dst, v0, y) ]
+      | `Add (dst, x, `Int y) ->
+        `Block (use_op x (fun x -> [`Addi (dst, x, y)]))
       
-      | `Sub (dst, `Ident x, `Ident y) -> `Sub (dst, x, y)
-      | `Sub (dst, `Int i, `Ident x) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, i);
-                 `Sub (dst, v0, x) ]
+      | `Sub (dst, i, `Ident x) ->
+        `Block (use_op i (fun i -> [`Sub (dst, i, x)]))
       | `Sub (dst, `Ident x, `Int i) -> `Subi (dst, x, i)
-      | `Sub (dst, `Int x, `Int y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Subi (dst, v0, y) ]
+      | `Sub (dst, x, y) ->
+        `Block (use_op x (fun x -> (use_op y (fun y -> [`Sub (dst, x, y)]))))
       
-      | `Mult (dst, `Ident x, `Ident y) ->
-        `Block [ `Mult (x, y);
-                 `Mflo dst ]
-      | `Mult (dst, `Ident x, `Int y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, y);
-                 `Mult (x, v0);
-                 `Mflo dst ]
-      | `Mult (dst, `Int x, `Ident y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Mult (v0, y);
-                 `Mflo dst ]
-      | `Mult (dst, `Int x, `Int y) ->
-        let v0 = uniq () and v1 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Li (v1, y);
-                 `Mult (v0, v1);
-                 `Mflo dst ]
+      | `Mult (dst, x, y) ->
+        `Block (use_op x (fun x ->
+                use_op y (fun y ->
+                [ `Mult (x, y);
+                  `Mflo dst ])))
       
-      | `Div (dst, `Ident x, `Ident y) ->
-        `Block [ `Div (x, y);
-                 `Mflo dst ]
-      | `Div (dst, `Ident x, `Int y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, y);
-                 `Div (x, v0);
-                 `Mflo dst ]
-      | `Div (dst, `Int x, `Ident y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Div (v0, y);
-                 `Mflo dst ]
-      | `Div (dst, `Int x, `Int y) ->
-        let v0 = uniq () and v1 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Li (v1, y);
-                 `Div (v0, v1);
-                 `Mflo dst ]
+      | `Div (dst, x, y) ->
+        `Block (use_op x (fun x ->
+                use_op y (fun y ->
+                [ `Div (x, y);
+                  `Mflo dst ])))
       
       | `And (dst, `Ident x, `Ident y) -> `And (dst, x, y)
       | `And (dst, `Int i, `Ident x) -> `Andi (dst, x, i)
@@ -219,13 +204,6 @@ let[@pass NestedIr => MipsArith] translate_arith =
         `Block [ `Li (v0, x);
                  `Ori (dst, v0, y) ]
   ]
-
-let use_op op instrs = match op with
-  | `Int i ->
-    let v0 = uniq () in
-    (`Li (v0, i))::(instrs v0)
-  | `Ident id ->
-    instrs id
 
 let[@pass MipsArith => MipsCond] translate_cond =
   [%passes
