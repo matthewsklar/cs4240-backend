@@ -246,3 +246,24 @@ let[@pass MipsArith => MipsCond] translate_cond =
         ])) in
         `Block blez
   ]
+
+let[@pass MipsCond => MipsMem] translate_array =
+  [%passes
+    let[@entry] rec instr = function
+      | `ArrayAssign (dst, len, value) ->
+        `Block (use_op value (fun value ->
+          List.init len (fun i -> `Sw (value, i, dst))))
+      | `ArrayLoad (dst, arr, `Int offset) ->
+        `Lw (dst, offset, arr)
+      | `ArrayLoad (dst, arr, `Ident offset) ->
+        let v0 = uniq () in
+        `Block [ `Add (v0, arr, offset);
+                 `Lw (dst, 0, v0) ]
+      | `ArrayStore (src, arr, `Int offset) ->
+        `Block (use_op src (fun src -> [`Sw (src, offset, arr)]))
+      | `ArrayStore (src, arr, `Ident offset) ->
+        let v0 = uniq () in
+        `Block (use_op src (fun src ->
+                [ `Add (v0, arr, offset);
+                  `Sw (src, 0, v0) ]))
+  ]
