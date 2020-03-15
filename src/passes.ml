@@ -140,17 +140,41 @@ module%language MipsMem = struct
   }
 end
 
-(*module%language MipsAlloc = struct
+module%language MipsCall = struct
   include MipsMem
+  type instr = {
+    add: [
+      | `Jr of string
+      | `Jal of string
+      | `Push of string
+      | `Pop of string
+    ];
+    del: [
+      | `Return of op
+      | `Call of string * op list
+      | `Callr of string * string * op list
+    ]
+  }
 end
 
-module%language MipsCall = struct
-  include MipsAlloc
+module%language MipsLiStack = struct
+  include MipsCall
+  type instr = {
+    del: [
+      | `Li of string * int
+      | `Push of string
+      | `Pop of string
+    ];
+    add: [ `Lui of string * int ]
+  }
 end
 
 module%language MipsFlat = struct
-  include MipsCall
-end*)
+  include MipsLiStack
+  type instr = {
+    del: [ `Block of instr list ]
+  }
+end
 
 let use_op op instrs = match op with
   | `Int i ->
@@ -266,4 +290,51 @@ let[@pass MipsCond => MipsMem] translate_array =
         `Block (use_op src (fun src ->
                 [ `Add (v0, arr, offset);
                   `Sw (src, 0, v0) ]))
+  ]
+
+(* Note: must save $a0..$a3 before any calls *)
+let rec push_args ?(regs=["a0"; "a1"; "a2"; "a3"]) args out = match regs, args with
+  | _, [] -> out
+  | [], (`Int i)::rest ->
+    push_args ~regs:[] rest ([ `Li ("a0", i);   (* Safe to use $a0 b/c this is before *)
+                              `Push "a0" ]@out)
+  | reg::regs, (`Int i)::rest ->
+    push_args ~regs rest ((`Li (reg, i))::out)
+  | [], (`Ident id)::rest ->
+    push_args ~regs:[] rest ((`Push id)::out)
+  | reg::regs, (`Ident id)::rest ->
+    push_args ~regs rest ((`Addi (reg, id, 0))::out)
+
+(* FIXME: Flesh out stack building *)
+let[@pass MipsMem => MipsCall] translate_call =
+  [%passes
+    let[@entry] rec instr = function
+      (* Sidenote: return w/out value is implicit in TigerIR: must return in epilog *)
+      | `Return (`Ident reg) ->
+        `Block [ `Addi ("v0", reg, 0);  (* mov $v0, $reg *)
+                 `Pop "ra";             (* pop $ra *)
+                 `Jr "ra" ]             (* ret *)
+      | `Return (`Int i) ->
+        `Block [ `Li ("v0", i);
+                 `Pop "ra";
+                 `Jr "ra" ]
+      | `Call (fn, ops) ->
+        `Block (push_args ops [ `Jal fn ])
+      | `Callr (res, fn, ops) ->
+        `Block (push_args ops [ `Jal fn;
+                                `Addi (res, "v0", 0)])
+  ]
+
+let[@pass MipsCall => MipsLiStack] remove_pseudos =
+  [%passes
+    let[@entry] rec instr = function
+      | `Li (reg, imm) ->
+        `Block [ `Lui (reg, imm lsr 16);             (* reg = imm >> 16 *)
+                 `Addi (reg, reg, imm land 0xFFFF) ] (* reg += imm & 0xFFFF *)
+      | `Push reg -> (* Optimization: we can fuse multiple pushes/pops into 1 add *)
+        `Block [ `Addi ("sp", "sp", -4);
+                 `Sw (reg, 0, "sp") ]
+      | `Pop reg ->
+        `Block [ `Lw (reg, 0, "sp");
+                 `Addi ("sp", "sp", 4) ]
   ]
