@@ -338,8 +338,7 @@ let rec flatten: MipsLiStack.instr list -> MipsFlat.instr list = function
   | [] -> []
   | (`Block parts)::rest ->
     (flatten parts)@(flatten rest)
-  (* Need to use Obj.magic b/c compiler doesn't know instr <> `Block, so can't :> it *)
-  | instr::rest -> (Obj.magic instr)::(flatten rest)
+  | (#MipsFlat.instr as instr)::rest -> instr::(flatten rest)
 
 let rec to_string: MipsFlat.instr list -> string = function
   | [] -> ""
