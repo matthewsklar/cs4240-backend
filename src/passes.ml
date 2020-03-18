@@ -317,6 +317,7 @@ let[@pass MipsMem => MipsCall] translate_call =
                  `Addi ("sp", "fp", 4);
                  `Lw ("fp", 0, "fp");
                  `Jr "ra" ]
+      (* FIXME: Use syscall instruction for built-in SPIM functions (or link in wrappers) *)
       | `Call (fn, ops) ->
         `Block (push_args ops [ `Jal fn ])
       | `Callr (res, fn, ops) ->
@@ -409,12 +410,14 @@ let rec to_string: MipsFlat.instr list -> string = function
   | (`Lui (dst, imm))::rest ->
     Printf.sprintf "\tlui $%s, %d\n%s" dst imm (to_string rest)
 
-let compile program =
-  program |> List.map of_ir
-          |> List.map translate_arith
-          |> List.map translate_cond
-          |> List.map translate_array
-          |> List.map translate_call
-          |> List.map remove_pseudos
-          |> flatten
-          |> to_string
+let compile fn =
+  let instrs = fn.body in 
+  instrs |> List.map of_ir
+         |> List.map translate_arith
+         |> List.map translate_cond
+         |> List.map translate_array
+         |> List.map translate_call
+         |> List.map remove_pseudos
+         |> flatten
+         |> build_stack fn.data
+         |> to_string
