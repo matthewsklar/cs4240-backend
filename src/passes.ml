@@ -292,7 +292,7 @@ let rec push_args ?(regs=["a0"; "a1"; "a2"; "a3"]) args out = match regs, args w
   | _, [] -> out
   | [], (`Int i)::rest ->
     push_args ~regs:[] rest ([ `Li ("a0", i);   (* Safe to use $a0 b/c this is before *)
-                              `Push "a0" ]@out)
+                               `Push "a0" ]@out)
   | reg::regs, (`Int i)::rest ->
     push_args ~regs rest ((`Li (reg, i))::out)
   | [], (`Ident id)::rest ->
@@ -307,11 +307,15 @@ let[@pass MipsMem => MipsCall] translate_call =
       (* Sidenote: return w/out value is implicit in TigerIR: must return in epilog *)
       | `Return (`Ident reg) ->
         `Block [ `Addi ("v0", reg, 0);  (* mov $v0, $reg *)
-                 `Pop "ra";             (* pop $ra *)
+                 `Lw ("ra", -4, "fp");  (* pop $ra *)
+                 `Addi ("sp", "fp", 4); (* restore $sp *)
+                 `Lw ("fp", 0, "fp");   (* restore $fp *)
                  `Jr "ra" ]             (* ret *)
       | `Return (`Int i) ->
         `Block [ `Li ("v0", i);
-                 `Pop "ra";
+                 `Lw ("ra", -4, "fp");
+                 `Addi ("sp", "fp", 4);
+                 `Lw ("fp", 0, "fp");
                  `Jr "ra" ]
       | `Call (fn, ops) ->
         `Block (push_args ops [ `Jal fn ])
@@ -339,6 +343,20 @@ let rec flatten: MipsLiStack.instr list -> MipsFlat.instr list = function
   | (`Block parts)::rest ->
     (flatten parts)@(flatten rest)
   | (#MipsFlat.instr as instr)::rest -> instr::(flatten rest)
+
+let build_stack {intList; _} instrs =
+  let var_alloc = List.map (function Scalar _ -> 4 | Array (_, n) -> n * 4) intList
+                  |> List.fold_left (+) 0 in
+  [ `Sw ("fp", -4, "sp");    (* push $fp *)
+    `Addi ("sp", "sp", -4);
+    `Addi ("fp", "sp", 0);   (* mov $fp, $sp*)
+    `Sw ("ra", -4, "sp");    (* push $ra *)
+    `Addi ("sp", "sp", -4 - var_alloc); (* Allocate room for local variables (don't save $s_ reg's) *)
+  ] @ instrs @ (* prolog, instrs, epilog *)
+  [ `Lw ("ra", -4, "fp");  (* pop $ra *)
+    `Addi ("sp", "fp", 4); (* restore $sp *)
+    `Lw ("fp", 0, "fp");   (* restore $fp *)
+    `Jr "ra" ]             (* ret *)
 
 let rec to_string: MipsFlat.instr list -> string = function
   | [] -> ""
