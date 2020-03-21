@@ -76,3 +76,141 @@ let naive ~locals_base ~temps_base {TIR.intList; _} instrs =
       Hashtbl.add mapping key (Spill (temps_base - uniq ()))
   end all_vars;
   mapping
+
+let apply_alloc_dxy allocs (dst, x, y) instr_fn =
+  let a_dst = Hashtbl.find allocs dst
+  and a_x = Hashtbl.find allocs x
+  and a_y = Hashtbl.find allocs y in
+
+  let (spilled_dst, n_dst, r_dst) = match a_dst with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r)
+  and (spilled_x, n_x, r_x) = match a_x with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r)
+  and (spilled_y, n_y, r_y) = match a_y with
+    | Spill n -> (true, n, "v1")
+    | Reg r -> (false, 0, r) in
+  
+  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  (if spilled_y then [`Lw (r_y, n_y, "fp")] else []) @
+  instr_fn r_dst r_x r_y @
+  (if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
+
+let apply_alloc_dx allocs (dst, x) instr_fn =
+  let a_dst = Hashtbl.find allocs dst
+  and a_x = Hashtbl.find allocs x in
+
+  let (spilled_dst, n_dst, r_dst) = match a_dst with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r)
+  and (spilled_x, n_x, r_x) = match a_x with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r) in
+
+  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  instr_fn r_dst r_x @
+  (if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
+
+let apply_alloc_d allocs dst instr_fn =
+  let a_dst = Hashtbl.find allocs dst in
+
+  let (spilled_dst, n_dst, r_dst) = match a_dst with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r) in
+
+  instr_fn r_dst @
+  (if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
+
+let apply_alloc_xy allocs (x, y) instr_fn =
+  let a_x = Hashtbl.find allocs x
+  and a_y = Hashtbl.find allocs y in
+
+  let (spilled_x, n_x, r_x) = match a_x with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r)
+  and (spilled_y, n_y, r_y) = match a_y with
+    | Spill n -> (true, n, "v1")
+    | Reg r -> (false, 0, r) in
+  
+  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  (if spilled_y then [`Lw (r_y, n_y, "fp")] else []) @
+  instr_fn r_x r_y
+
+let apply_alloc_x allocs x instr_fn =
+  let a_x = Hashtbl.find allocs x in
+
+  let (spilled_x, n_x, r_x) = match a_x with
+    | Spill n -> (true, n, "at")
+    | Reg r -> (false, 0, r) in
+  
+  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  instr_fn r_x
+
+let apply_allocations allocs instrs =
+  instrs >>= begin function
+    | `Add (dst, x, y) ->
+      let add dst x y = [`Add (dst, x, y)] in
+      (apply_alloc_dxy allocs (dst, x, y) add)
+    | `Addi (dst, x, imm) ->
+      let addi dst x = [`Addi (dst, x, imm)] in
+      (apply_alloc_dx allocs (dst, x) addi)
+    | `Sub (dst, x, y) ->
+      let sub dst x y = [`Sub (dst, x, y)] in
+      (apply_alloc_dxy allocs (dst, x, y) sub)
+    | `Subi (dst, x, imm) ->
+      let subi dst x = [`Subi (dst, x, imm)] in
+      (apply_alloc_dx allocs (dst, x) subi)
+    | `Mult (x, y) ->
+      let mult x y = [`Mult (x, y)] in
+      (apply_alloc_xy allocs (x, y) mult)
+    | `Div (x, y) ->
+      let div x y = [`Div (x, y)] in
+      (apply_alloc_xy allocs (x, y) div)
+    | `Mflo dst ->
+      let mflo dst = [`Mflo dst] in
+      (apply_alloc_d allocs dst mflo)
+    | `And (dst, x, y) ->
+      let and_ dst x y = [`And (dst, x, y)] in
+      (apply_alloc_dxy allocs (dst, x, y) and_)
+    | `Andi (dst, x, imm) ->
+      let andi dst x = [`Andi (dst, x, imm)] in
+      (apply_alloc_dx allocs (dst, x) andi)
+    | `Or (dst, x, y) ->
+      let or_ dst x y = [`Or (dst, x, y)] in
+      (apply_alloc_dxy allocs (dst, x, y) or_)
+    | `Ori (dst, x, imm) ->
+      let ori dst x = [`Ori (dst, x, imm)] in
+      (apply_alloc_dx allocs (dst, x) ori)
+    | `Jr x ->
+      let jr x = [`Jr x] in
+      (apply_alloc_x allocs x jr)
+    | `Beq (x, y, lbl) ->
+      let beq x y = [`Beq (x, y, lbl)] in
+      (apply_alloc_xy allocs (x, y) beq)
+    | `Bne (x, y, lbl) ->
+      let bne x y = [`Bne (x, y, lbl)] in
+      (apply_alloc_xy allocs (x, y) bne)
+    | `Blez (x, lbl) ->
+      let blez x = [`Blez (x, lbl)] in
+      (apply_alloc_x allocs x blez)
+    | `Bgez (x, lbl) ->
+      let bgez x = [`Bgez (x, lbl)] in
+      (apply_alloc_x allocs x bgez)
+    | `Bltz (x, lbl) ->
+      let bltz x = [`Bltz (x, lbl)] in
+      (apply_alloc_x allocs x bltz)
+    | `Bgtz (x, lbl) ->
+      let bgtz x = [`Bgtz (x, lbl)] in
+      (apply_alloc_x allocs x bgtz)
+    | `Lw (dst, imm, x) ->
+      let lw dst x = [`Lw (dst, imm, x)] in
+      (apply_alloc_dx allocs (dst, x) lw)
+    | `Sw (x, imm, y) ->
+      let sw x y = [`Sw (x, imm, y)] in
+      (apply_alloc_xy allocs (x, y) sw)
+    | `Lui (dst, imm) ->
+      let lui dst = [`Lui (dst, imm)] in
+      (apply_alloc_d allocs dst lui)
+    | other -> [other]
+  end
