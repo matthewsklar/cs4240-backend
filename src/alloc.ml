@@ -43,7 +43,7 @@ and collect_vars ?(set=VarSet.empty): Ir.instr list -> VarSet.t = function
    perform any operations, and the store $sn back on the stack. The int
    associated with a spill corresponds to its location relative to the
    frame pointer ($fp). *)
-type allocation = Spill of int | Reg of string
+type allocation = Spill of int | Reg of string | SpillArr of int
 
 (* Add identity mapping for each register to itself
    FIXME: We need to have some way of knowing which registers are virtual
@@ -78,11 +78,17 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
   VarSet.iter begin fun key ->
     if not (Hashtbl.mem mapping key) then begin
       (* Calculate the offset of the var in the stack *)
-      let local_offset = ref 0 and found_local = ref false in
+      let local_offset = ref 0 and found_local = ref false and local_array = ref false in
       let param_offset = ref 0 and found_param = ref false and param_in_register = ref (-1) in
       List.iter begin fun (name, size) ->
         if not !found_local then local_offset := !local_offset + size else ();
-        if name = key then found_local := true else ()
+        (* If the match is an array, then we don't want to map to it, because
+           spilling would result in us allocating *x instead of x *)
+        if name = key && size = 4 then found_local := true else
+        if name = key && size > 4 then begin
+          found_local := true;
+          local_array := true
+        end else ()
       end alloc_sizes;
       List.iteri begin fun i (name, size) ->
         if i >= 4 then begin
@@ -94,7 +100,10 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
         end else ();
       end param_sizes;
       if !found_local then
-        Hashtbl.add mapping key (Spill (locals_base - !local_offset))
+        if !local_array then
+          Hashtbl.add mapping key (SpillArr (locals_base - !local_offset))
+        else
+          Hashtbl.add mapping key (Spill (locals_base - !local_offset))
       else if !found_param then
         if !param_in_register <> -1 then
           Hashtbl.add mapping key (Reg (Printf.sprintf "a%d" !param_in_register))
@@ -113,69 +122,78 @@ let apply_alloc_dxy allocs (dst, x, y) instr_fn =
   and a_x = Hashtbl.find allocs x
   and a_y = Hashtbl.find allocs y in
 
-  let (spilled_dst, n_dst, r_dst) = match a_dst with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r)
-  and (spilled_x, n_x, r_x) = match a_x with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r)
-  and (spilled_y, n_y, r_y) = match a_y with
-    | Spill n -> (true, n, "v1")
-    | Reg r -> (false, 0, r) in
-  
-  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
-  (if spilled_y then [`Lw (r_y, n_y, "fp")] else []) @
+  let (spilled_dst, arr_dst, n_dst, r_dst) = match a_dst with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r)
+  and (spilled_x, arr_x, n_x, r_x) = match a_x with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r)
+  and (spilled_y, arr_y, n_y, r_y) = match a_y with
+    | SpillArr n -> (true, true, n, "v1")
+    | Spill n -> (true, false, n, "v1")
+    | Reg r -> (false, false, 0, r) in
+
+  (if arr_x then [`Addi (r_x, "fp", n_x)] else if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  (if arr_y then [`Addi (r_y, "fp", n_y)] else if spilled_y then [`Lw (r_y, n_y, "fp")] else []) @
   instr_fn r_dst r_x r_y @
-  (if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
+  (if arr_dst then [`Addi (r_dst, "fp", n_dst)] else if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
 
 let apply_alloc_dx allocs (dst, x) instr_fn =
   let a_dst = Hashtbl.find allocs dst
   and a_x = Hashtbl.find allocs x in
 
-  let (spilled_dst, n_dst, r_dst) = match a_dst with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r)
-  and (spilled_x, n_x, r_x) = match a_x with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r) in
+  let (spilled_dst, arr_dst, n_dst, r_dst) = match a_dst with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r)
+  and (spilled_x, arr_x, n_x, r_x) = match a_x with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r) in
 
-  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  (if arr_x then [`Addi (r_x, "fp", n_x)] else if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
   instr_fn r_dst r_x @
-  (if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
+  (if arr_dst then [`Addi (r_dst, "fp", n_dst)] else if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
 
 let apply_alloc_d allocs dst instr_fn =
   let a_dst = Hashtbl.find allocs dst in
 
-  let (spilled_dst, n_dst, r_dst) = match a_dst with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r) in
+  let (spilled_dst, arr_dst, n_dst, r_dst) = match a_dst with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r) in
 
   instr_fn r_dst @
-  (if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
+  (if arr_dst then [`Addi (r_dst, "fp", n_dst)] else if spilled_dst then [`Sw (r_dst, n_dst, "fp")] else [])
 
 let apply_alloc_xy allocs (x, y) instr_fn =
   let a_x = Hashtbl.find allocs x
   and a_y = Hashtbl.find allocs y in
 
-  let (spilled_x, n_x, r_x) = match a_x with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r)
-  and (spilled_y, n_y, r_y) = match a_y with
-    | Spill n -> (true, n, "v1")
-    | Reg r -> (false, 0, r) in
-  
-  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
-  (if spilled_y then [`Lw (r_y, n_y, "fp")] else []) @
+  let (spilled_x, arr_x, n_x, r_x) = match a_x with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r)
+  and (spilled_y, arr_y, n_y, r_y) = match a_y with
+    | SpillArr n -> (true, true, n, "v1")
+    | Spill n -> (true, false, n, "v1")
+    | Reg r -> (false, false, 0, r) in
+
+  (if arr_x then [`Addi (r_x, "fp", n_x)] else if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  (if arr_y then [`Addi (r_y, "fp", n_y)] else if spilled_y then [`Lw (r_y, n_y, "fp")] else []) @
   instr_fn r_x r_y
 
 let apply_alloc_x allocs x instr_fn =
   let a_x = Hashtbl.find allocs x in
 
-  let (spilled_x, n_x, r_x) = match a_x with
-    | Spill n -> (true, n, "at")
-    | Reg r -> (false, 0, r) in
-  
-  (if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
+  let (spilled_x, arr_x, n_x, r_x) = match a_x with
+    | SpillArr n -> (true, true, n, "at")
+    | Spill n -> (true, false, n, "at")
+    | Reg r -> (false, false, 0, r) in
+
+  (if arr_x then [`Addi (r_x, "fp", n_x)] else if spilled_x then [`Lw (r_x, n_x, "fp")] else []) @
   instr_fn r_x
 
 let apply_allocations allocs instrs =
