@@ -70,8 +70,8 @@ let naive {TIR.intList; _} instrs =
     let counter = ref 0 in
     fun () ->
       let n = !counter in
-      counter := n + 1;
-      n in
+      counter := n + 4;
+      !counter in
   (* Map variables stored in the stack to their spill offset *)
   VarSet.iter begin fun key ->
     if not (Hashtbl.mem mapping key) then begin
