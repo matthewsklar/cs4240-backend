@@ -57,11 +57,13 @@ let add_registers_id mapping =
   ];
   mapping
 
-let naive {TIR.intList; _} instrs =
+let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
   let all_vars = collect_vars instrs in
   let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id in
   let alloc_sizes =
-    List.map (function TIR.Scalar name -> (name, 4) | TIR.Array (name, n) -> (name, n * 4)) intList in
+    List.map (function TIR.Scalar name -> (name, 4) | TIR.Array (name, n) -> (name, n * 4)) intList
+  and param_sizes =
+    List.map (function (name, TIR.(TyInt | TyFloat)) -> (name, 4) | (name, TIR.TyArray (_, n)) -> (name, n * 4)) params in
   let locals_size = List.fold_left (fun acc (_, n) -> acc + n) 0 alloc_sizes in
   let locals_base = -8 (* $fp, $ra, locals ... *)
   and temps_base = -8 - locals_size in (* $fp, $ra, locals ..., temps ... *)
@@ -76,13 +78,28 @@ let naive {TIR.intList; _} instrs =
   VarSet.iter begin fun key ->
     if not (Hashtbl.mem mapping key) then begin
       (* Calculate the offset of the var in the stack *)
-      let offset = ref 0 and continue = ref true in
+      let local_offset = ref 0 and found_local = ref false in
+      let param_offset = ref 0 and found_param = ref false and param_in_register = ref (-1) in
       List.iter begin fun (name, size) ->
-        if !continue then offset := !offset + size else ();
-        if name = then continue := false else ()
+        if not !found_local then local_offset := !local_offset + size else ();
+        if name = key then found_local := true else ()
       end alloc_sizes;
-      if !continue then
-        Hashtbl.add mapping key (Spill (locals_base - !offset))
+      List.iteri begin fun i (name, size) ->
+        if i >= 4 then begin
+          if not !found_param then param_offset := !param_offset + size else ();
+          if name = key then found_param := true else ()
+        end else if name = key then begin
+          found_param := true;
+          param_in_register := i
+        end else ();
+      end param_sizes;
+      if !found_local then
+        Hashtbl.add mapping key (Spill (locals_base - !local_offset))
+      else if !found_param then
+        if !param_in_register <> -1 then
+          Hashtbl.add mapping key (Reg (Printf.sprintf "a%d" !param_in_register))
+        else
+          Hashtbl.add mapping key (Spill !param_offset)
       else begin
         new_spills := !new_spills + 4;
         Hashtbl.add mapping key (Spill (temps_base - uniq_alloc ()))
