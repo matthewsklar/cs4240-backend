@@ -1,4 +1,4 @@
-module Ir = Passes.MipsMem
+module Ir = Passes.MipsFlat
 module TIR = TigerIR.Ir
 
 module VarSet = Set.Make(String)
@@ -17,25 +17,19 @@ let rec instr_collect_vars (set: VarSet.t): Ir.instr -> VarSet.t = function
   | `Addi (dst, rx, _)
   | `Subi (dst, rx, _)
   | `Andi (dst, rx, _)
-  | `Ori (dst, rx, _) -> add_all set [dst; rx]
+  | `Ori (dst, rx, _)
+  | `Sll (dst, rx, _) -> add_all set [dst; rx]
   | `Mult (rx, ry)
   | `Div (rx, ry)
   | `Beq (rx, ry, _)
   | `Bne (rx, ry, _) -> add_all set [rx; ry]
   | `Mflo dst
-  | `Li (dst, _) -> add_all set [dst]
+  | `Lui (dst, _) -> add_all set [dst]
+  | `Jr rx
   | `Blez (rx, _) | `Bltz (rx, _)
-  | `Bgez (rx, _) | `Bgtz (rx, _)
-  | `Return (`Ident rx) -> add_all set [rx]
+  | `Bgez (rx, _) | `Bgtz (rx, _) -> add_all set [rx]
   | `Lw (dst, _, src) | `Sw (src, _, dst) -> add_all set [src; dst]
-  | `Call (_, ops) ->
-    let args = ops >>= (function `Int _ -> [] | `Ident id -> [id]) in
-    add_all set args
-  | `Callr (dst, _, ops) ->
-    let args = ops >>= (function `Int _ -> [] | `Ident id -> [id]) in
-    add_all set (dst::args)
-  | `Block instrs -> collect_vars ~set instrs
-  | `J _ | `Return (`Int _) | `Label _ -> set
+  | `J _ | `Jal _ |  `Label _ -> set
 
 and collect_vars ?(set=VarSet.empty): Ir.instr list -> VarSet.t = function
   | [] -> set
