@@ -126,6 +126,7 @@ module%language MipsMem = struct
     add: [
       | `Lw of string * int * string (* lw dst, off(src) *)
       | `Sw of string * int * string (* sw src, off(dst) *)
+      | `Sll of string * string * int
     ];
     del: [
       | `ArrayStore of op * string * op
@@ -271,19 +272,21 @@ let[@pass MipsCond => MipsMem] translate_array =
     let[@entry] rec instr = function
       | `ArrayAssign (dst, len, value) ->
         `Block (use_op value (fun value ->
-          List.init len (fun i -> `Sw (value, i, dst))))
+          List.init len (fun i -> `Sw (value, 4 * i, dst))))
       | `ArrayLoad (dst, arr, `Int offset) ->
-        `Lw (dst, offset, arr)
+        `Lw (dst, 4 * offset, arr)
       | `ArrayLoad (dst, arr, `Ident offset) ->
         let v0 = uniq () in
-        `Block [ `Add (v0, arr, offset);
+        `Block [ `Sll (v0, offset, 2);
+                 `Add (v0, arr, v0); (* arr + offset*4 *)
                  `Lw (dst, 0, v0) ]
       | `ArrayStore (src, arr, `Int offset) ->
-        `Block (use_op src (fun src -> [`Sw (src, offset, arr)]))
+        `Block (use_op src (fun src -> [`Sw (src, 4 * offset, arr)]))
       | `ArrayStore (src, arr, `Ident offset) ->
         let v0 = uniq () in
         `Block (use_op src (fun src ->
-                [ `Add (v0, arr, offset);
+                [ `Sll (v0, offset, 2);
+                  `Add (v0, arr, v0); (* arr + offset*4 *)
                   `Sw (src, 0, v0) ]))
   ]
 
@@ -385,6 +388,8 @@ let rec to_string: MipsFlat.instr list -> string = function
     Printf.sprintf "\tor $%s, $%s, $%s\n%s" dst rx ry (to_string rest)
   | (`Ori (dst, rx, imm))::rest ->
     Printf.sprintf "\tori $%s, $%s, %d\n%s" dst rx imm (to_string rest)
+  | (`Sll (dst, rx, imm))::rest ->
+    Printf.sprintf "\tsll $%s, $%s, %d\n%s" dst rx imm (to_string rest)
   | (`J lbl)::rest ->
     Printf.sprintf "\tj %s\n%s" lbl (to_string rest)
   | (`Jr reg)::rest ->

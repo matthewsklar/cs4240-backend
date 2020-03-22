@@ -196,6 +196,9 @@ let apply_allocations allocs instrs =
     | `Ori (dst, x, imm) ->
       let ori dst x = [`Ori (dst, x, imm)] in
       (apply_alloc_dx allocs (dst, x) ori)
+    | `Sll (dst, x, imm) ->
+      let sll dst x = [`Sll (dst, x, imm)] in
+      (apply_alloc_dx allocs (dst, x) sll)
     | `Jr x ->
       let jr x = [`Jr x] in
       (apply_alloc_x allocs x jr)
