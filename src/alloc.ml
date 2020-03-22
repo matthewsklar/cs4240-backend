@@ -57,12 +57,16 @@ let add_registers_id mapping =
   ];
   mapping
 
-let naive ~locals_base ~temps_base {TIR.intList; _} instrs =
+let naive {TIR.intList; _} instrs =
   let all_vars = collect_vars instrs in
   let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id in
   let alloc_sizes =
     List.map (function TIR.Scalar name -> (name, 4) | TIR.Array (name, n) -> (name, n * 4)) intList in
-  let uniq =
+  let locals_size = List.fold_left (fun acc (_, n) -> acc + n) 0 alloc_sizes in
+  let locals_base = -8 (* $fp, $ra, locals ... *)
+  and temps_base = -8 - locals_size in (* $fp, $ra, locals ..., temps ... *)
+  let new_spills = ref 0 in (* # of new spill slots that need to be allocated (in bytes) *)
+  let uniq_alloc =
     let counter = ref 0 in
     fun () ->
       let n = !counter in
@@ -79,11 +83,13 @@ let naive ~locals_base ~temps_base {TIR.intList; _} instrs =
       end alloc_sizes;
       if !continue then
         Hashtbl.add mapping key (Spill (locals_base - !offset))
-      else
-        Hashtbl.add mapping key (Spill (temps_base - uniq ()))
+      else begin
+        new_spills := !new_spills + 4;
+        Hashtbl.add mapping key (Spill (temps_base - uniq_alloc ()))
+      end
     end else ()
   end all_vars;
-  mapping
+  (mapping, !new_spills)
 
 let apply_alloc_dxy allocs (dst, x, y) instr_fn =
   let a_dst = Hashtbl.find allocs dst
