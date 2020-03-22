@@ -348,14 +348,15 @@ let rec flatten: MipsLiStack.instr list -> MipsFlat.instr list = function
     (flatten parts)@(flatten rest)
   | (#MipsFlat.instr as instr)::rest -> instr::(flatten rest)
 
-let build_stack {intList; _} instrs =
+let build_stack ~new_spills {intList; _} instrs =
   let var_alloc = List.map (function Scalar _ -> 4 | Array (_, n) -> n * 4) intList
                   |> List.fold_left (+) 0 in
   [ `Sw ("fp", -4, "sp");    (* push $fp *)
     `Addi ("sp", "sp", -4);
     `Addi ("fp", "sp", 0);   (* mov $fp, $sp*)
     `Sw ("ra", -4, "sp");    (* push $ra *)
-    `Addi ("sp", "sp", -4 - var_alloc); (* Allocate room for local variables (don't save $s_ reg's) *)
+    (* Allocate room for local variables & spilled variables (don't save $s_ reg's) *)
+    `Addi ("sp", "sp", -4 - var_alloc - new_spills);
   ] @ instrs @ (* prolog, instrs, epilog *)
   [ `Lw ("ra", -4, "fp");  (* pop $ra *)
     `Addi ("sp", "fp", 4); (* restore $sp *)
@@ -415,14 +416,15 @@ let rec to_string: MipsFlat.instr list -> string = function
   | (`Lui (dst, imm))::rest ->
     Printf.sprintf "\tlui $%s, %d\n%s" dst imm (to_string rest)
 
-let compile fn =
-  let instrs = fn.body in 
-  instrs |> List.map of_ir
-         |> List.map translate_arith
-         |> List.map translate_cond
-         |> List.map translate_array
-         |> List.map translate_call
-         |> List.map remove_pseudos
-         |> flatten
-         |> build_stack fn.data
-         |> to_string
+let compile ~allocator fn =
+  let instrs = fn.body in
+  let instrs' =
+    instrs |> List.map of_ir
+           |> List.map translate_arith
+           |> List.map translate_cond
+           |> List.map translate_array
+           |> List.map translate_call
+           |> List.map remove_pseudos
+           |> flatten in
+  let (code, new_spills) = allocator fn instrs' in
+  (`Label fn.name)::(build_stack ~new_spills fn.data code) |> to_string
