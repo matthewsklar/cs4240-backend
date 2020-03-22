@@ -241,28 +241,28 @@ let[@pass MipsArith => MipsCond] translate_cond =
         let v0 = uniq () in
         let bgtz = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Bgtz (x, lbl)
+          `Bgtz (v0, lbl)
         ])) in
         `Block bgtz
       | `Brlt (lbl, x, y) ->
         let v0 = uniq () in
         let bltz = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Bltz (x, lbl)
+          `Bltz (v0, lbl)
         ])) in
         `Block bltz
       | `Brgeq (lbl, x, y) ->
         let v0 = uniq () in
         let bgez = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Bgez (x, lbl)
+          `Bgez (v0, lbl)
         ])) in
         `Block bgez
       | `Brleq (lbl, x, y) ->
         let v0 = uniq () in
         let blez = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Blez (x, lbl)
+          `Blez (v0, lbl)
         ])) in
         `Block blez
   ]
