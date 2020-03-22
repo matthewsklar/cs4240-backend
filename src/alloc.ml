@@ -45,9 +45,21 @@ and collect_vars ?(set=VarSet.empty): Ir.instr list -> VarSet.t = function
    frame pointer ($fp). *)
 type allocation = Spill of int | Reg of string
 
+(* Add identity mapping for each register to itself
+   FIXME: We need to have some way of knowing which registers are virtual
+   vs. physical, in case a user names a virtual register e.g. "a0" or "zero" *)
+let add_registers_id mapping =
+  List.iter (fun reg -> Hashtbl.add mapping reg (Reg reg)) [
+    "zero"; "at"; "v0"; "v1"; "a0"; "a1"; "a2"; "a3";
+    "t0"; "t1"; "t2"; "t3"; "t4"; "t5"; "t6"; "t7"; "t8"; "t9";
+    "s0"; "s1"; "s2"; "s3"; "s4"; "s5"; "s6"; "s7";
+    "k0"; "k1"; "gp"; "sp"; "fp"; "ra"
+  ];
+  mapping
+
 let naive ~locals_base ~temps_base {TIR.intList; _} instrs =
   let all_vars = collect_vars instrs in
-  let mapping = Hashtbl.create (VarSet.cardinal all_vars) in
+  let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id in
   let alloc_sizes =
     List.map (function TIR.Scalar name -> (name, 4) | TIR.Array (name, n) -> (name, n * 4)) intList in
   let uniq =
@@ -58,16 +70,18 @@ let naive ~locals_base ~temps_base {TIR.intList; _} instrs =
       n in
   (* Map variables stored in the stack to their spill offset *)
   VarSet.iter begin fun key ->
-    (* Calculate the offset of the var in the stack *)
-    let offset = ref 0 and continue = ref true in
-    List.iter begin fun (name, size) ->
-      if !continue then offset := !offset + size else ();
-      if name = key then continue := false else ()
-    end alloc_sizes;
-    if !continue then
-      Hashtbl.add mapping key (Spill (locals_base - !offset))
-    else
-      Hashtbl.add mapping key (Spill (temps_base - uniq ()))
+    if not (Hashtbl.mem mapping key) then begin
+      (* Calculate the offset of the var in the stack *)
+      let offset = ref 0 and continue = ref true in
+      List.iter begin fun (name, size) ->
+        if !continue then offset := !offset + size else ();
+        if name = then continue := false else ()
+      end alloc_sizes;
+      if !continue then
+        Hashtbl.add mapping key (Spill (locals_base - !offset))
+      else
+        Hashtbl.add mapping key (Spill (temps_base - uniq ()))
+    end else ()
   end all_vars;
   mapping
 
