@@ -97,7 +97,7 @@ let rec to_string: MipsFlat.instr list -> string = function
   | (`Lui (dst, imm))::rest ->
     Printf.sprintf "\tlui %s, %d\n%s" dst imm (to_string rest)
 
-let compile ~allocator fn =
+let compile_function ~allocator fn =
   let instrs = fn.body in
   let instrs' =
     instrs |> List.map of_ir
@@ -109,3 +109,7 @@ let compile ~allocator fn =
            |> flatten in
   let (code, new_spills) = allocator fn instrs' in
   (`Label fn.name)::(build_stack ~new_spills fn.data code) |> to_string
+
+let compile_program ~allocator prog =
+  let prog_header = ".globl main" in
+  List.fold_left (fun output fn -> output ^ "\n" ^ compile_function ~allocator fn) prog_header prog
