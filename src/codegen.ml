@@ -26,4 +26,4 @@ let () =
   let allocator fn body =
     let (allocs, new_spills) = Alloc.naive fn body in
     (Alloc.apply_allocations allocs body, new_spills) in
-  print_endline (Passes.compile ~allocator example_program)
+  print_endline (Isel.compile ~allocator example_program)
