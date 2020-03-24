@@ -57,6 +57,8 @@ let add_registers_id mapping =
 
 let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
   let all_vars = collect_vars instrs in
+  (* FIXME: We should initialize this with parameters too, since they're already assigned
+     to registers if they're #1-#4. *)
   let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id in
   let alloc_sizes =
     List.map (function TIR.Scalar name -> (name, 4) | TIR.Array (name, n) -> (name, n * 4)) intList
@@ -83,6 +85,9 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
         (* If the match is an array, then we don't want to map to it, because
            spilling would result in us allocating *x instead of x *)
         if name = key && size = 4 then found_local := true else
+        (* FIXME: If the size of the array is 1, then this will indicate that it's not an array,
+           causing us to incorrectly handle the array spilling. Need to figure out another way
+           to check if the variable is an array!!! *)
         if name = key && size > 4 then begin
           found_local := true;
           local_array := true
