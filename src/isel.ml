@@ -111,5 +111,6 @@ let compile_function ~allocator fn =
   (`Label fn.name)::(build_stack ~new_spills fn.data code) |> to_string
 
 let compile_program ~allocator prog =
-  let prog_header = ".globl main" in
+  (* `.set noat` disables the SPIM error when using the $at register *)
+  let prog_header = ".set noat\n.globl main" in
   List.fold_left (fun output fn -> output ^ "\n" ^ compile_function ~allocator fn) prog_header prog
