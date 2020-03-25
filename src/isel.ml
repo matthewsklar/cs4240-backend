@@ -29,6 +29,23 @@ let of_ir = function
   | ArrayLoad (x, y, z) -> `ArrayLoad (x, y, of_op z)
   | ArrayAssign (x, y, z) -> `ArrayAssign (x, y, of_op z)
 
+let load_params params body =
+  let rec drop n list = match n, list with
+    | _, [] -> []
+    | 0, list -> list
+    | n, _::rest -> drop (n - 1) rest in
+  (* Only the last 4 params are on the stack *)
+  let stack_params = drop 4 params in
+  let param_sizes =
+    List.map (function (name, (TyInt | TyFloat)) -> (name, 4) | (name, TyArray (_, n)) -> (name, n * 4)) stack_params in
+  let program, _ =
+    List.fold_right begin fun (name, size) (program, size_acc) ->
+      let size' = size + size_acc in
+      let load = `Lw (name, size', "$fp") in
+      (load::program, size')
+    end param_sizes (body, 0) in
+  program
+
 let build_stack ~new_spills {intList; _} instrs =
   let var_alloc = List.map (function Scalar _ -> 4 | Array (_, n) -> n * 4) intList
                   |> List.fold_left (+) 0 in

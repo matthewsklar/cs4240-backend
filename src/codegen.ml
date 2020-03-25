@@ -30,7 +30,10 @@ let example_program =
     params = [("a", TyInt); ("b", TyInt); ("c", TyInt); ("d", TyInt);
               ("e", TyInt); ("f", TyInt); ("g", TyInt)];
     data = { floatList = []; intList = [] };
-    body = [Return (Int 100)]
+    body = [
+      Add ("x", Ident "e", Ident "a");
+      Add ("x", Ident "x", Ident "f");
+      Return (Ident "g")]
   } in
   [main; do_stuff]
 
@@ -57,7 +60,19 @@ let read_file eval filename =
 let eval out_filename ~allocator prog =
   let out_file = open_out out_filename in
   let prog' = Isel.compile_program ~allocator prog in
+  print_endline prog';
   output_string out_file prog'
+
+let naive_allocator fn body =
+  let preallocs = Alloc.init_mapping fn body in
+  let (allocs, new_spills) = Alloc.naive fn preallocs body in
+  (Alloc.apply_allocations allocs body, new_spills)
+
+let chaitin_briggs_allocator fn body =
+  let body_with_params = Isel.load_params TigerIR.Ir.(fn.params) body in
+  let preallocs = Alloc.init_mapping fn body_with_params in
+  let (allocs, new_spills) = Alloc.chaitin_briggs fn preallocs body_with_params in
+  (Alloc.apply_allocations allocs body_with_params, new_spills)
 
 let () =
   let in_filename = ref ""
@@ -78,12 +93,10 @@ let () =
     Printf.eprintf "Error: No output file given!\n";
     exit 1
   end;
-  let allocator fn body =
-    let preallocs = Alloc.init_mapping fn body in
-    let (allocs, new_spills) = match !alloc with
-    | "naive" -> Alloc.naive fn preallocs body
-    | "graph" -> Alloc.chaitin_briggs fn preallocs body
-    | _ -> Printf.eprintf "Error: invalid allocator type\n";
-           exit 1 in
-    (Alloc.apply_allocations allocs body, new_spills) in
+  let allocator = match !alloc with
+    | "naive" -> naive_allocator
+    | "graph" -> chaitin_briggs_allocator
+    | _ ->
+      Printf.eprintf "Error: invalid allocator type\n";
+      exit 1 in
   read_file (eval !out_filename ~allocator) !in_filename
