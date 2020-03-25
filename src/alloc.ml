@@ -118,9 +118,9 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } mapping instrs =
   (mapping, !new_spills)
 
 let chaitin_briggs fn mapping instrs =
-  let cfg, entry = Cfg.build instrs in
+  let cfg, _ = Cfg.build instrs in
   let sets = Dataflow.init cfg in
-  let solved = Dataflow.solve (cfg, entry) sets in
+  let solved = Dataflow.solve cfg sets in
   Dataflow.print_vmap solved;
   naive fn mapping instrs
 

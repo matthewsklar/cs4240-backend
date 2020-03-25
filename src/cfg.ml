@@ -19,6 +19,10 @@ end
 module G =
   Imperative.Digraph.ConcreteBidirectionalLabeled(Vertex)(Edge)
 
+module Operations = Oper.I(G)
+
+module Topo = Topological.Make(G)
+
 let build instrs =
   (* Create our graph *)
   let g = G.create () in
@@ -76,7 +80,7 @@ let build instrs =
       G.add_edge_e g edge
     (* For branches, there are always two edges: the next instruction
        (fallthrough) and the target of the branch (whenever the condition
-      is true) *)
+       is true) *)
     | `Beq (_, _, lbl)
     | `Bne (_, _, lbl)
     | `Bltz (_, lbl)
