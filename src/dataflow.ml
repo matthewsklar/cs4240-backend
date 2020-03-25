@@ -82,10 +82,10 @@ let all_vars g =
     VSet.union (def v) set
   end g VSet.empty
 
-let rec fixpoint (g, entry) sets f =
-  let sets' = f (g, entry) sets in
+let rec fixpoint g sets f =
+  let sets' = f g sets in
   if sets_converged sets' sets then sets
-  else fixpoint (g, entry) sets' f
+  else fixpoint g sets' f
 
 let init g =
   let sets = VMap.empty in
@@ -101,10 +101,10 @@ let init g =
     VMap.add v vset sets
   end g sets
 
-let solve (g, entry) sets =
-  let f (g, entry) sets =
+let solve g sets =
+  let f g sets =
     let visited = Hashtbl.create (G.nb_vertex g) in
-    let rec traverse sets node =
+    let traverse node sets =
       if not (Hashtbl.mem visited node) then begin
         Hashtbl.add visited node ();
         let { gen_set; kill_set; _ } = VMap.find node sets
@@ -117,12 +117,11 @@ let solve (g, entry) sets =
         let out_set = List.fold_left VSet.union VSet.empty succ_ins in
         let in_set = VSet.union gen_set (VSet.diff out_set kill_set) in
         let sets' = VMap.add node { gen_set; kill_set; in_set; out_set } sets in
-        (* Is it okay to go forwards, even though we want backwards? *)
-        let outgoing = G.succ g node in
-        List.fold_left traverse sets' outgoing
+        sets'
       end else sets in
-    traverse sets entry in
-  fixpoint (g, entry) sets f
+    let reversed = Operations.mirror g in
+    Topo.fold traverse reversed sets in
+  fixpoint g sets f
 
 let string_of_vertex v vset =
   (*
