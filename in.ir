@@ -1,0 +1,21 @@
+#start_function
+void main():
+int-list: x, xs[3], n
+float-list:
+    assign, x, 0
+    assign, xs, 3, x
+start:
+    array_store, n, xs, n
+    add, n, n, 1
+    brgeq, start, n, 3
+    callr, x, do_stuff, x, n, 3, 6, 7
+#end_function
+
+#start_function
+int do_stuff(int a, int b, int c, int d, int e, int f, int g):
+int-list: x
+float-list:
+    add, x, e, a
+    add, x, x, f
+    return, g
+#end_function
