@@ -117,10 +117,22 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } mapping instrs =
   end all_vars;
   (mapping, !new_spills)
 
+let available_registers = [
+  "$t0"; "$t1"; "$t2"; "$t3"; "$t4"; "$t5"; "$t6"; "$t7"; "$t8"; "$t9";
+  "$s0"; "$s1"; "$s2"; "$s3"; "$s4"; "$s5"; "$s6"; "$s7"
+]
+
 let chaitin_briggs fn mapping instrs =
+  Printf.printf "Running Chaitin-Briggs on %s:\n" TIR.(fn.name);
   let cfg, _ = Cfg.build instrs in
   let sets = Dataflow.init cfg in
   let solved = Dataflow.solve cfg sets in
+  let rig = Rig.build (Dataflow.all_vars cfg) solved in
+  let num_registers = List.length available_registers in
+  let colored = Rig.Color.coloring rig num_registers in
+  Rig.Color.H.iter begin fun key value ->
+    Printf.printf "\t%s -> %d\n" key value
+  end colored;
   Dataflow.print_vmap solved;
   naive fn mapping instrs
 
