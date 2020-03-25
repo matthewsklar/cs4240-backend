@@ -63,9 +63,12 @@ let add_param_registers params mapping =
   end params;
   mapping
 
-let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
+let init_mapping fn instrs =
   let all_vars = collect_vars instrs in
-  let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id |> add_param_registers params in
+  Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id |> add_param_registers fn.TIR.params
+
+let naive { TIR.params; TIR.data={TIR.intList; _}; _ } mapping instrs =
+  let all_vars = collect_vars instrs in
   let alloc_sizes =
     List.map (function TIR.Scalar name -> (name, false, 4) | TIR.Array (name, n) -> (name, true, n * 4)) intList
   and param_sizes =
@@ -113,6 +116,13 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
     end else ()
   end all_vars;
   (mapping, !new_spills)
+
+let chaitin_briggs fn mapping instrs =
+  let cfg, entry = Cfg.build instrs in
+  let sets = Dataflow.init cfg in
+  let solved = Dataflow.solve (cfg, entry) sets in
+  Dataflow.print_vmap solved;
+  naive fn mapping instrs
 
 let apply_alloc_dxy allocs (dst, x, y) instr_fn =
   let a_dst = Hashtbl.find allocs dst

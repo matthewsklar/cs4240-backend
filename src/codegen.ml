@@ -33,6 +33,7 @@ let example_program =
 
 let () =
   let allocator fn body =
-    let (allocs, new_spills) = Alloc.naive fn body in
+    let preallocs = Alloc.init_mapping fn body in
+    let (allocs, new_spills) = Alloc.chaitin_briggs fn preallocs body in
     (Alloc.apply_allocations allocs body, new_spills) in
   print_endline (Isel.compile_program ~allocator example_program)
