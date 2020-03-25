@@ -61,10 +61,10 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
      to registers if they're #1-#4. *)
   let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id in
   let alloc_sizes =
-    List.map (function TIR.Scalar name -> (name, 4) | TIR.Array (name, n) -> (name, n * 4)) intList
+    List.map (function TIR.Scalar name -> (name, false, 4) | TIR.Array (name, n) -> (name, true, n * 4)) intList
   and param_sizes =
     List.map (function (name, TIR.(TyInt | TyFloat)) -> (name, 4) | (name, TIR.TyArray (_, n)) -> (name, n * 4)) params in
-  let locals_size = List.fold_left (fun acc (_, n) -> acc + n) 0 alloc_sizes in
+  let locals_size = List.fold_left (fun acc (_, _, n) -> acc + n) 0 alloc_sizes in
   let locals_base = -8 (* $fp, $ra, locals ... *)
   and temps_base = -8 - locals_size in (* $fp, $ra, locals ..., temps ... *)
   let new_spills = ref 0 in (* # of new spill slots that need to be allocated (in bytes) *)
@@ -80,18 +80,12 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
       (* Calculate the offset of the var in the stack *)
       let local_offset = ref 0 and found_local = ref false and local_array = ref false in
       let param_offset = ref 0 and found_param = ref false and param_in_register = ref (-1) in
-      List.iter begin fun (name, size) ->
+      List.iter begin fun (name, is_array, size) ->
         if not !found_local then local_offset := !local_offset + size else ();
         (* If the match is an array, then we don't want to map to it, because
            spilling would result in us allocating *x instead of x *)
-        if name = key && size = 4 then found_local := true else
-        (* FIXME: If the size of the array is 1, then this will indicate that it's not an array,
-           causing us to incorrectly handle the array spilling. Need to figure out another way
-           to check if the variable is an array!!! *)
-        if name = key && size > 4 then begin
-          found_local := true;
-          local_array := true
-        end else ()
+        if name = key then found_local := true else ();
+        if name = key && is_array then local_array := true else ()
       end alloc_sizes;
       List.iteri begin fun i (name, size) ->
         if i >= 4 then begin
