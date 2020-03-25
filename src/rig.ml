@@ -13,12 +13,15 @@ module G =
 
 module Color = Coloring.Make(G)
 
-let build vars sets =
+let build preallocated vars sets =
   let open Dataflow in
   let rig = G.create () in
 
+  let is_allocated v =
+    Hashtbl.mem preallocated v in
+
   VSet.iter begin fun var ->
-    G.add_vertex rig var
+    if not (is_allocated var) then G.add_vertex rig var
   end vars;
 
   let rec permute2 seen = function
@@ -34,10 +37,10 @@ let build vars sets =
        these variables should not be treated as mutually exlcusive during
        coloring. *)
     List.iter begin fun (a, b) ->
-      G.add_edge rig a b
+      if not (is_allocated a) && not (is_allocated b) then G.add_edge rig a b
     end (permute2 [] (VSet.elements entry.in_set));
     List.iter begin fun (a, b) ->
-      G.add_edge rig a b
+      if not (is_allocated a) && not (is_allocated b) then G.add_edge rig a b
     end (permute2 [] (VSet.elements entry.out_set))
   end sets;
 
