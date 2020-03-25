@@ -55,11 +55,17 @@ let add_registers_id mapping =
   ];
   mapping
 
+let add_param_registers params mapping =
+  List.iteri begin fun i (id, _) ->
+    if i < 4 then
+      Hashtbl.add mapping id (Reg (Printf.sprintf "$a%d" i))
+    else ()
+  end params;
+  mapping
+
 let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
   let all_vars = collect_vars instrs in
-  (* FIXME: We should initialize this with parameters too, since they're already assigned
-     to registers if they're #1-#4. *)
-  let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id in
+  let mapping = Hashtbl.create (VarSet.cardinal all_vars) |> add_registers_id |> add_param_registers params in
   let alloc_sizes =
     List.map (function TIR.Scalar name -> (name, false, 4) | TIR.Array (name, n) -> (name, true, n * 4)) intList
   and param_sizes =
@@ -79,7 +85,7 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
     if not (Hashtbl.mem mapping key) then begin
       (* Calculate the offset of the var in the stack *)
       let local_offset = ref 0 and found_local = ref false and local_array = ref false in
-      let param_offset = ref 0 and found_param = ref false and param_in_register = ref (-1) in
+      let param_offset = ref 0 and found_param = ref false in
       List.iter begin fun (name, is_array, size) ->
         if not !found_local then local_offset := !local_offset + size else ();
         (* If the match is an array, then we don't want to map to it, because
@@ -91,10 +97,7 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
         if i >= 4 then begin
           if not !found_param then param_offset := !param_offset + size else ();
           if name = key then found_param := true else ()
-        end else if name = key then begin
-          found_param := true;
-          param_in_register := i
-        end else ();
+        end else ()
       end param_sizes;
       if !found_local then
         if !local_array then
@@ -102,10 +105,7 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } instrs =
         else
           Hashtbl.add mapping key (Spill (locals_base - !local_offset))
       else if !found_param then
-        if !param_in_register <> -1 then
-          Hashtbl.add mapping key (Reg (Printf.sprintf "$a%d" !param_in_register))
-        else
-          Hashtbl.add mapping key (Spill !param_offset)
+        Hashtbl.add mapping key (Spill !param_offset)
       else begin
         new_spills := !new_spills + 4;
         Hashtbl.add mapping key (Spill (temps_base - uniq_alloc ()))
