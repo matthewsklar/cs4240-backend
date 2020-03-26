@@ -74,8 +74,8 @@ let naive { TIR.params; TIR.data={TIR.intList; _}; _ } mapping instrs =
   and param_sizes =
     List.map (function (name, TIR.(TyInt | TyFloat)) -> (name, 4) | (name, TIR.TyArray (_, n)) -> (name, n * 4)) params in
   let locals_size = List.fold_left (fun acc (_, _, n) -> acc + n) 0 alloc_sizes in
-  let locals_base = -8 (* $fp, $ra, locals ... *)
-  and temps_base = -8 - locals_size in (* $fp, $ra, locals ..., temps ... *)
+  let locals_base = -40 (* $fp, $ra, $s*, locals ... *)
+  and temps_base = -40 - locals_size in (* $fp, $ra, $s*, locals ..., temps ... *)
   let new_spills = ref 0 in (* # of new spill slots that need to be allocated (in bytes) *)
   let uniq_alloc =
     let counter = ref 0 in
@@ -131,7 +131,11 @@ let chaitin_briggs fn mapping instrs =
   let num_registers = Rig.G.nb_vertex rig in
   let colored = Rig.Color.coloring rig num_registers in
   Rig.Color.H.iter begin fun key value ->
-    Printf.printf "\t%s -> %d\n" key value
+    Printf.printf "\t%s -> %d\n" key value;
+    (* Pick the first N registers and spill the rest. TODO: Improve the
+       spilling to spill variables that are used less frequently *)
+    if value < List.length available_registers then
+      Hashtbl.add mapping key (Reg (List.nth available_registers value))
   end colored;
   Dataflow.print_vmap solved;
   naive fn mapping instrs

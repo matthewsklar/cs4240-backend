@@ -53,10 +53,26 @@ let build_stack ~new_spills {intList; _} instrs =
     `Addi ("$sp", "$sp", -4);
     `Addi ("$fp", "$sp", 0);   (* mov $fp, $sp*)
     `Sw ("$ra", -4, "$sp");    (* push $ra *)
+    `Sw ("$s0", -8, "$sp");
+    `Sw ("$s1", -12, "$sp");
+    `Sw ("$s2", -16, "$sp");
+    `Sw ("$s3", -20, "$sp");
+    `Sw ("$s4", -24, "$sp");
+    `Sw ("$s5", -28, "$sp");
+    `Sw ("$s6", -32, "$sp");
+    `Sw ("$s7", -36, "$sp");
     (* Allocate room for local variables & spilled variables (don't save $s_ reg's) *)
-    `Addi ("$sp", "$sp", -4 - var_alloc - new_spills);
+    `Addi ("$sp", "$sp", -36 - var_alloc - new_spills);
   ] @ instrs @ (* prolog, instrs, epilog *)
-  [ `Lw ("$ra", -4, "$fp");  (* pop $ra *)
+  [ `Lw ("$s7", -36, "$sp");
+    `Lw ("$s6", -32, "$sp");
+    `Lw ("$s5", -28, "$sp");
+    `Lw ("$s4", -24, "$sp");
+    `Lw ("$s3", -20, "$sp");
+    `Lw ("$s2", -16, "$sp");
+    `Lw ("$s1", -12, "$sp");
+    `Lw ("$s0", -8, "$sp");
+    `Lw ("$ra", -4, "$fp");  (* pop $ra *)
     `Addi ("$sp", "$fp", 4); (* restore $sp *)
     `Lw ("$fp", 0, "$fp");   (* restore $fp *)
     `Jr "$ra" ]              (* ret *)

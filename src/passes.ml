@@ -275,6 +275,43 @@ let rec push_args ?(regs=["$a0"; "$a1"; "$a2"; "$a3"]) args out = match regs, ar
   | reg::regs, (`Ident id)::rest ->
     push_args ~regs rest ((`Addi (reg, id, 0))::out)
 
+(* TODO: Optimization: don't emit all these saves if we don't need them *)
+let save_regs = [
+  `Sw ("$a0", -4, "$sp");
+  `Sw ("$a1", -8, "$sp");
+  `Sw ("$a2", -12, "$sp");
+  `Sw ("$a3", -16, "$sp");
+  `Sw ("$t0", -20, "$sp");
+  `Sw ("$t1", -24, "$sp");
+  `Sw ("$t2", -28, "$sp");
+  `Sw ("$t3", -32, "$sp");
+  `Sw ("$t4", -36, "$sp");
+  `Sw ("$t5", -40, "$sp");
+  `Sw ("$t6", -44, "$sp");
+  `Sw ("$t7", -48, "$sp");
+  `Sw ("$t8", -52, "$sp");
+  `Sw ("$t9", -56, "$sp");
+  `Addi ("$sp", "$sp", -56)
+]
+
+let restore_regs = [
+  `Addi ("$sp", "$sp", 56);
+  `Lw ("$t9", -56, "$sp");
+  `Lw ("$t8", -52, "$sp");
+  `Lw ("$t7", -48, "$sp");
+  `Lw ("$t6", -44, "$sp");
+  `Lw ("$t5", -40, "$sp");
+  `Lw ("$t4", -36, "$sp");
+  `Lw ("$t3", -32, "$sp");
+  `Lw ("$t2", -28, "$sp");
+  `Lw ("$t1", -24, "$sp");
+  `Lw ("$t0", -20, "$sp");
+  `Lw ("$a3", -16, "$sp");
+  `Lw ("$a2", -12, "$sp");
+  `Lw ("$a1", -8, "$sp");
+  `Lw ("$a0", -4, "$sp")
+]
+
 (* FIXME: Flesh out stack building *)
 let[@pass MipsMem => MipsCall] translate_call =
   [%passes
@@ -294,10 +331,12 @@ let[@pass MipsMem => MipsCall] translate_call =
                  `Jr "$ra" ]
       (* FIXME: Use syscall instruction for built-in SPIM functions (or link in wrappers) *)
       | `Call (fn, ops) ->
-        `Block (push_args ops [ `Jal fn ])
+        `Block (save_regs @ push_args ops [ `Jal fn ] @ restore_regs)
       | `Callr (res, fn, ops) ->
-        `Block (push_args ops [ `Jal fn;
-                                `Addi (res, "$v0", 0)])
+        `Block (save_regs @
+                push_args ops [ `Jal fn;
+                                `Addi (res, "$v0", 0)]
+                @ restore_regs)
   ]
 
 let[@pass MipsCall => MipsLiStack] remove_pseudos =
