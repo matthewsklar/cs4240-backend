@@ -196,44 +196,45 @@ let[@pass NestedIr => MipsArith] translate_arith =
                  `Ori (dst, v0, y) ]
   ]
 
-let[@pass MipsArith => MipsCond] translate_cond =
+let[@pass MipsArith => MipsCond] translate_cond fn_name =
   [%passes
     let[@entry] rec instr = function
-      | `Goto lbl -> `J lbl
+      | `Label lbl -> `Label (fn_name ^ "_" ^ lbl)
+      | `Goto lbl -> `J (fn_name ^ "_" ^ lbl)
       | `Breq (lbl, x, y) ->
         `Block (use_op x (fun x ->
                 use_op y (fun y ->
-                [`Beq (x, y, lbl)])))
+                [`Beq (x, y, fn_name ^ "_" ^ lbl)])))
       | `Brneq (lbl, x, y) ->
         `Block (use_op x (fun x ->
                 use_op y (fun y ->
-                [`Bne (x, y, lbl)])))
+                [`Bne (x, y, fn_name ^ "_" ^ lbl)])))
       | `Brgt (lbl, x, y) ->
         let v0 = uniq () in
         let bgtz = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Bgtz (v0, lbl)
+          `Bgtz (v0, fn_name ^ "_" ^ lbl)
         ])) in
         `Block bgtz
       | `Brlt (lbl, x, y) ->
         let v0 = uniq () in
         let bltz = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Bltz (v0, lbl)
+          `Bltz (v0, fn_name ^ "_" ^ lbl)
         ])) in
         `Block bltz
       | `Brgeq (lbl, x, y) ->
         let v0 = uniq () in
         let bgez = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Bgez (v0, lbl)
+          `Bgez (v0, fn_name ^ "_" ^ lbl)
         ])) in
         `Block bgez
       | `Brleq (lbl, x, y) ->
         let v0 = uniq () in
         let blez = use_op x (fun x -> use_op y (fun y -> [
           `Sub (v0, x, y);
-          `Blez (v0, lbl)
+          `Blez (v0, fn_name ^ "_" ^ lbl)
         ])) in
         `Block blez
   ]

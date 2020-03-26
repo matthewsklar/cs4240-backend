@@ -133,7 +133,7 @@ let compile_function ~allocator fn =
   let instrs' =
     instrs |> List.map of_ir
            |> List.map translate_arith
-           |> List.map translate_cond
+           |> List.map (translate_cond fn.name)
            |> List.map translate_array
            |> List.map translate_call
            |> List.map remove_pseudos
