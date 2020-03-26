@@ -126,7 +126,7 @@ let chaitin_briggs fn mapping instrs =
   let cfg, _ = Cfg.build instrs in
   let sets = Dataflow.init cfg in
   let solved = Dataflow.solve cfg sets in
-  let rig = Rig.build mapping (Dataflow.all_vars cfg) solved in
+  let rig = Rig.build mapping TIR.(fn.data.intList) (Dataflow.all_vars cfg) solved in
   let num_registers = Rig.G.nb_vertex rig in
   let colored = Rig.Color.coloring rig num_registers in
   Rig.Color.H.iter begin fun key value ->

@@ -13,12 +13,14 @@ module G =
 
 module Color = Coloring.Make(G)
 
-let build preallocated vars sets =
+let build preallocated locals vars sets =
   let open Dataflow in
   let rig = G.create () in
 
   let is_allocated v =
-    Hashtbl.mem preallocated v in
+    let is_local_array =
+      List.exists (function TigerIR.Ir.Array (name, _) when name = v -> true | _ -> false) locals in
+    Hashtbl.mem preallocated v || is_local_array in
 
   VSet.iter begin fun var ->
     if not (is_allocated var) then G.add_vertex rig var
