@@ -31,7 +31,6 @@ let def v =
   | `Add (dst, _, _)
   | `Addi (dst, _, _)
   | `Sub (dst, _, _)
-  | `Subi (dst, _, _)
   | `Mflo dst
   | `And (dst, _, _)
   | `Andi (dst, _, _)
@@ -61,7 +60,6 @@ let use v =
   | `Bne (x, y, _)
   | `Sw (x, _, y) -> virtual_set [x; y]
   | `Addi (_, x, _)
-  | `Subi (_, x, _)
   | `Andi (_, x, _)
   | `Ori (_, x, _)
   | `Sll (_, x, _)

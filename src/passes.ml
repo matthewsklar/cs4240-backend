@@ -47,7 +47,6 @@ module%language MipsArith = struct
       | `Add of string * string * string
       | `Addi of string * string * int
       | `Sub of string * string * string
-      | `Subi of string * string * int
       | `Mult of string * string
       | `Div of string * string
       | `And of string * string * string
@@ -164,7 +163,7 @@ let[@pass NestedIr => MipsArith] translate_arith =
       
       | `Sub (dst, i, `Ident x) ->
         `Block (use_op i (fun i -> [`Sub (dst, i, x)]))
-      | `Sub (dst, `Ident x, `Int i) -> `Subi (dst, x, i)
+      | `Sub (dst, `Ident x, `Int i) -> `Addi (dst, x, -i)
       | `Sub (dst, x, y) ->
         `Block (use_op x (fun x -> (use_op y (fun y -> [`Sub (dst, x, y)]))))
       

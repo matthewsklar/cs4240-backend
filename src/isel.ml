@@ -87,8 +87,6 @@ let rec to_string: MipsFlat.instr list -> string = function
     Printf.sprintf "\taddi %s, %s, %d\n%s" dst rx imm (to_string rest)
   | (`Sub (dst, rx, ry))::rest ->
     Printf.sprintf "\tsub %s, %s, %s\n%s" dst rx ry (to_string rest)
-  | (`Subi (dst, rx, imm))::rest ->
-    Printf.sprintf "\tsubi %s, %s, %d\n%s" dst rx imm (to_string rest)
   | (`Mult (rx, ry))::rest ->
     Printf.sprintf "\tmult %s, %s\n%s" rx ry (to_string rest)
   | (`Div (rx, ry))::rest ->

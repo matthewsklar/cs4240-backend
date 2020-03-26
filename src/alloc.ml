@@ -15,7 +15,6 @@ let rec instr_collect_vars (set: VarSet.t): Ir.instr -> VarSet.t = function
   | `And (dst, rx, ry)
   | `Or (dst, rx, ry) -> add_all set [dst; rx; ry]
   | `Addi (dst, rx, _)
-  | `Subi (dst, rx, _)
   | `Andi (dst, rx, _)
   | `Ori (dst, rx, _)
   | `Sll (dst, rx, _) -> add_all set [dst; rx]
@@ -230,9 +229,6 @@ let apply_allocations allocs instrs =
     | `Sub (dst, x, y) ->
       let sub dst x y = [`Sub (dst, x, y)] in
       (apply_alloc_dxy allocs (dst, x, y) sub)
-    | `Subi (dst, x, imm) ->
-      let subi dst x = [`Subi (dst, x, imm)] in
-      (apply_alloc_dx allocs (dst, x) subi)
     | `Mult (x, y) ->
       let mult x y = [`Mult (x, y)] in
       (apply_alloc_xy allocs (x, y) mult)
