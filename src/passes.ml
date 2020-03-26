@@ -334,9 +334,7 @@ let[@pass MipsMem => MipsCall] translate_call =
         `Block (save_regs @ push_args ops [ `Jal fn ] @ restore_regs)
       | `Callr (res, fn, ops) ->
         `Block (save_regs @
-                push_args ops [ `Jal fn;
-                                `Addi (res, "$v0", 0)]
-                @ restore_regs)
+                push_args ops [ `Jal fn ] @ restore_regs @ [`Addi (res, "$v0", 0)])
   ]
 
 let[@pass MipsCall => MipsLiStack] remove_pseudos =
