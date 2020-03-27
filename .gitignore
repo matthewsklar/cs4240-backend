@@ -34,3 +34,8 @@ examples/*.dot
 *.dot
 
 out/
+
+test_cases/floating_point_test_cases
+test_cases/{bfs,fib,pow,prime,quicksort}/*-{naive,graph}.{out,s}
+test_cases/*/*-naive.*
+test_cases/*/*-graph.*
