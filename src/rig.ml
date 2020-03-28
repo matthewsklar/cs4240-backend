@@ -40,9 +40,9 @@ let build preallocated locals vars sets =
        allow variables to be superseded by another var in the same register. *)
     VSet.iter begin fun d ->
       VSet.iter begin fun v ->
-        if not (is_allocated d) && not (is_allocated v) then G.add_edge rig d v
+        if not (is_allocated d) && not (is_allocated v) && d <> v then G.add_edge rig d v
       end entry.out_set
-    end (defs node);
+    end (def node);
     (* Don't combine the in_set & out_set into one bigger set, because
       these are unique program points. If in_set = {A} and out_set = {B},
       these variables should not be treated as mutually exlcusive during
