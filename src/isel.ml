@@ -125,8 +125,8 @@ let rec to_string: MipsFlat.instr list -> string = function
     Printf.sprintf "\tlw %s, %d(%s)\n%s" dst off reg (to_string rest)
   | (`Sw (src, off, reg))::rest ->
     Printf.sprintf "\tsw %s, %d(%s)\n%s" src off reg (to_string rest)
-  | (`Lui (dst, imm))::rest ->
-    Printf.sprintf "\tlui %s, %d\n%s" dst imm (to_string rest)
+  | (`Li (dst, imm))::rest ->
+    Printf.sprintf "\tli %s, %d\n%s" dst imm (to_string rest)
 
 let compile_function ~allocator fn =
   let instrs = fn.body in

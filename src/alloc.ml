@@ -23,7 +23,7 @@ let rec instr_collect_vars (set: VarSet.t): Ir.instr -> VarSet.t = function
   | `Beq (rx, ry, _)
   | `Bne (rx, ry, _) -> add_all set [rx; ry]
   | `Mflo dst
-  | `Lui (dst, _) -> add_all set [dst]
+  | `Li (dst, _) -> add_all set [dst]
   | `Jr rx
   | `Blez (rx, _) | `Bltz (rx, _)
   | `Bgez (rx, _) | `Bgtz (rx, _) -> add_all set [rx]
@@ -282,8 +282,8 @@ let apply_allocations allocs instrs =
     | `Sw (x, imm, y) ->
       let sw x y = [`Sw (x, imm, y)] in
       (apply_alloc_xy allocs (x, y) sw)
-    | `Lui (dst, imm) ->
-      let lui dst = [`Lui (dst, imm)] in
-      (apply_alloc_d allocs dst lui)
+    | `Li (dst, imm) ->
+      let li dst = [`Li (dst, imm)] in
+      (apply_alloc_d allocs dst li)
     | other -> [other]
   end

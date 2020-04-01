@@ -128,11 +128,9 @@ module%language MipsLiStack = struct
   include MipsCall
   type instr = {
     del: [
-      | `Li of string * int
       | `Push of string
       | `Pop of string
-    ];
-    add: [ `Lui of string * int ]
+    ]
   }
 end
 
@@ -143,12 +141,20 @@ module%language MipsFlat = struct
   }
 end
 
+let imm16_min = -32768
+let imm16_max =  32767
+let imm16_valid x = x >= imm16_min && x <= imm16_max
+
 let use_op op instrs = match op with
   | `Int i ->
     let v0 = uniq () in
     (`Li (v0, i))::(instrs v0)
   | `Ident id ->
     instrs id
+
+let use_op2 x y instrs =
+  use_op x (fun x ->
+  use_op y (fun y -> instrs x y))
 
 let[@pass NestedIr => MipsArith] translate_arith =
   [%passes
@@ -157,43 +163,45 @@ let[@pass NestedIr => MipsArith] translate_arith =
       | `Assign (dst, `Int imm) -> `Li (dst, imm)
 
       | `Add (dst, `Ident x, `Ident y) -> `Add (dst, x, y)
-      | `Add (dst, `Int i, `Ident x) -> `Addi (dst, x, i)
-      | `Add (dst, x, `Int y) ->
-        `Block (use_op x (fun x -> [`Addi (dst, x, y)]))
+      | `Add (dst, `Int x, `Int y) -> `Li (dst, x + y)
+      | `Add (dst, `Ident x, `Int i) ->
+        if imm16_valid i then `Addi (dst, x, i)
+        else let v0 = uniq () in `Block [`Li (v0, i); `Add (dst, x, v0)]
+      | `Add (dst, `Int i, `Ident x) ->
+        if imm16_valid i then `Addi (dst, x, i)
+        else let v0 = uniq () in `Block [`Li (v0, i); `Add (dst, x, v0)]
       
       | `Sub (dst, i, `Ident x) ->
         `Block (use_op i (fun i -> [`Sub (dst, i, x)]))
-      | `Sub (dst, `Ident x, `Int i) -> `Addi (dst, x, -i)
-      | `Sub (dst, x, y) ->
-        `Block (use_op x (fun x -> (use_op y (fun y -> [`Sub (dst, x, y)]))))
+      | `Sub (dst, `Ident x, `Int i) ->
+        if imm16_valid i then `Addi (dst, x, -i)
+        else let v0 = uniq () in `Block [`Li (v0, -i); `Add (dst, x, v0)]
+      | `Sub (dst, `Int x, `Int y) -> `Li (dst, x - y)
       
+      | `Mult (dst, `Int x, `Int y) -> `Li (dst, x * y)
       | `Mult (dst, x, y) ->
-        `Block (use_op x (fun x ->
-                use_op y (fun y ->
-                [ `Mult (x, y);
-                  `Mflo dst ])))
+        `Block (use_op2 x y (fun x y -> [ `Mult (x, y); `Mflo dst ]))
       
       | `Div (dst, x, y) ->
-        `Block (use_op x (fun x ->
-                use_op y (fun y ->
-                [ `Div (x, y);
-                  `Mflo dst ])))
+        `Block (use_op2 x y (fun x y -> [ `Div (x, y); `Mflo dst ]))
       
       | `And (dst, `Ident x, `Ident y) -> `And (dst, x, y)
-      | `And (dst, `Int i, `Ident x) -> `Andi (dst, x, i)
-      | `And (dst, `Ident x, `Int i) -> `Andi (dst, x, i)
-      | `And (dst, `Int x, `Int y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Andi (dst, v0, y) ]
+      | `And (dst, `Ident x, `Int i) ->
+        if imm16_valid i then `Andi (dst, x, i)
+        else let v0 = uniq () in `Block [`Li (v0, i); `And (dst, x, v0)]
+      | `And (dst, `Int i, `Ident x) ->
+        if imm16_valid i then `Andi (dst, x, i)
+        else let v0 = uniq () in `Block [`Li (v0, i); `And (dst, x, v0)]
+      | `And (dst, `Int x, `Int y) -> `Li (dst, x land y)
 
       | `Or (dst, `Ident x, `Ident y) -> `Or (dst, x, y)
-      | `Or (dst, `Int i, `Ident x) -> `Ori (dst, x, i)
-      | `Or (dst, `Ident x, `Int i) -> `Ori (dst, x, i)
-      | `Or (dst, `Int x, `Int y) ->
-        let v0 = uniq () in
-        `Block [ `Li (v0, x);
-                 `Ori (dst, v0, y) ]
+      | `Or (dst, `Ident x, `Int i) ->
+        if imm16_valid i then `Ori (dst, x, i)
+        else let v0 = uniq () in `Block [`Li (v0, i); `Or (dst, x, v0)]
+      | `Or (dst, `Int i, `Ident x) ->
+        if imm16_valid i then `Ori (dst, x, i)
+        else let v0 = uniq () in `Block [`Li (v0, i); `Or (dst, x, v0)]
+      | `Or (dst, `Int x, `Int y) -> `Li (dst, x lor y)
   ]
 
 let[@pass MipsArith => MipsCond] translate_cond fn_name =
@@ -340,9 +348,6 @@ let[@pass MipsMem => MipsCall] translate_call =
 let[@pass MipsCall => MipsLiStack] remove_pseudos =
   [%passes
     let[@entry] rec instr = function
-      | `Li (reg, imm) ->
-        `Block [ `Lui (reg, imm lsr 16);             (* reg = imm >> 16 *)
-                 `Addi (reg, reg, imm land 0xFFFF) ] (* reg += imm & 0xFFFF *)
       | `Push reg -> (* Optimization: we can fuse multiple pushes/pops into 1 add *)
         `Block [ `Addi ("$sp", "$sp", -4);
                  `Sw (reg, 0, "$sp") ]

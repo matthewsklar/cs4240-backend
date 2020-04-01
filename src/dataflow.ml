@@ -39,7 +39,7 @@ let def v =
   | `Sll (dst, _, _)
   | `Lw (dst, _, _)
   | `Sw (_, _, dst) (* Is this the correct thing to do? *)
-  | `Lui (dst, _) -> if is_virtual dst then VSet.singleton dst else VSet.empty
+  | `Li (dst, _) -> if is_virtual dst then VSet.singleton dst else VSet.empty
   | _ -> VSet.empty
 
 let use v =
