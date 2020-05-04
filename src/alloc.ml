@@ -1,5 +1,5 @@
 module Ir = Passes.MipsFlat
-module TIR = TigerIR.Ir
+module TIR = TigerIR
 
 module VarSet = Set.Make(String)
 

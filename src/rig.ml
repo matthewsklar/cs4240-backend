@@ -19,7 +19,7 @@ let build preallocated locals vars sets =
 
   let is_allocated v =
     let is_local_array =
-      List.exists (function TigerIR.Ir.Array (name, _) when name = v -> true | _ -> false) locals in
+      List.exists (function TigerIR.Array (name, _) when name = v -> true | _ -> false) locals in
     Hashtbl.mem preallocated v || is_local_array in
 
   VSet.iter begin fun var ->

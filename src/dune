@@ -1,4 +1,9 @@
+(ocamllex lexer)
+(menhir
+  (flags (--explain))
+  (modules parser))
+
 (executable
   (name codegen)
-  (libraries tigerIR ppx_nanocaml)
+  (libraries ppx_nanocaml ocamlgraph menhirLib)
   (preprocess (pps ppx_nanocaml)))

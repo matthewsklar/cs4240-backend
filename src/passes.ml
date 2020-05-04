@@ -1,4 +1,4 @@
-open TigerIR.Ir
+open TigerIR
 
 type op = [
   | `Int of int

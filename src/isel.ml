@@ -1,5 +1,5 @@
 open Passes
-open TigerIR.Ir
+open TigerIR
 
 let of_op = function
   | Int i -> `Int i

@@ -1,5 +1,4 @@
 open Lexing
-open TigerIR
 
 let string_of_position filename lexbuf =
   let pos = lexbuf.lex_curr_p in
@@ -33,7 +32,7 @@ let naive_allocator fn body =
   (Alloc.apply_allocations allocs body, new_spills)
 
 let chaitin_briggs_allocator fn body =
-  let body_with_params = Isel.load_params TigerIR.Ir.(fn.params) body in
+  let body_with_params = Isel.load_params TigerIR.(fn.params) body in
   let preallocs = Alloc.init_mapping fn body_with_params in
   let (allocs, new_spills) = Alloc.chaitin_briggs fn preallocs body_with_params in
   (Alloc.apply_allocations allocs body_with_params, new_spills)
